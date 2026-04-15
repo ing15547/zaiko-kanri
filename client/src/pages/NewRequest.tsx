@@ -17,9 +17,9 @@ import {
 import { ArrowLeft, ArrowUpCircle, ArrowDownCircle, Plus, Trash2, Lock } from "lucide-react";
 import { Link } from "wouter";
 import {
-  getRequestWithItems, createRequest, updateRequest, verifyPin,
-  type StockRequestWithItems,
-} from "@/lib/db";
+  getRequest, createRequest, updateRequest, verifyPin, loadConfig,
+  type StockRequest,
+} from "@/lib/github";
 import { useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
 
@@ -57,10 +57,12 @@ export default function NewRequest({ editId }: Props) {
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
 
-  const { data: existing } = useQuery<StockRequestWithItems | undefined>({
+  const cfg = loadConfig();
+
+  const { data: existing } = useQuery<StockRequest | null>({
     queryKey: ["requests", editId],
-    queryFn: () => getRequestWithItems(parseInt(editId!)),
-    enabled: isEditMode,
+    queryFn: () => getRequest(cfg!, parseInt(editId!)),
+    enabled: isEditMode && !!cfg,
   });
 
   const form = useForm<FormValues>({
@@ -98,43 +100,45 @@ export default function NewRequest({ editId }: Props) {
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "items" });
 
   const handlePinVerify = async () => {
-    const valid = await verifyPin(parseInt(editId!), pinInput);
+    if (!cfg) return;
+    const valid = await verifyPin(cfg, parseInt(editId!), pinInput);
     if (valid) { setPinVerified(true); setPinError(""); }
     else setPinError("PINが正しくありません");
   };
 
   const createMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      return createRequest(
-        {
-          type: data.type, postDeadline: data.postDeadline,
-          requesterBase: data.requesterBase, requesterName: data.requesterName,
-          requesterExtension: data.requesterExtension, requesterEmail: data.requesterEmail,
-          pin: data.pin, note: data.note, status: "受付中",
-        },
-        data.items.map((item, i) => ({ ...item, sortOrder: i }))
-      );
+      if (!cfg) throw new Error("GitHub設定がありません");
+      return createRequest(cfg, {
+        type: data.type, postDeadline: data.postDeadline,
+        requesterBase: data.requesterBase, requesterName: data.requesterName,
+        requesterExtension: data.requesterExtension, requesterEmail: data.requesterEmail,
+        pin: data.pin, note: data.note, status: "受付中",
+        items: data.items.map((item, i) => ({
+          ...item, id: i, requestId: 0, sortOrder: i,
+        })),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["requests"] });
       toast({ title: "掲示板に投稿しました" });
       navigate("/");
     },
-    onError: () => toast({ title: "投稿に失敗しました", variant: "destructive" }),
+    onError: (e: Error) => toast({ title: e.message || "投稿に失敗しました", variant: "destructive" }),
   });
 
   const updateMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      return updateRequest(
-        parseInt(editId!),
-        {
-          type: data.type, postDeadline: data.postDeadline,
-          requesterBase: data.requesterBase, requesterName: data.requesterName,
-          requesterExtension: data.requesterExtension, requesterEmail: data.requesterEmail,
-          note: data.note,
-        },
-        data.items.map((item, i) => ({ ...item, sortOrder: i }))
-      );
+      if (!cfg) throw new Error("GitHub設定がありません");
+      return updateRequest(cfg, parseInt(editId!), {
+        type: data.type, postDeadline: data.postDeadline,
+        requesterBase: data.requesterBase, requesterName: data.requesterName,
+        requesterExtension: data.requesterExtension, requesterEmail: data.requesterEmail,
+        note: data.note,
+        items: data.items.map((item, i) => ({
+          ...item, id: i, requestId: parseInt(editId!), sortOrder: i,
+        })),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["requests"] });
@@ -142,7 +146,7 @@ export default function NewRequest({ editId }: Props) {
       toast({ title: "依頼を更新しました" });
       navigate(`/requests/${editId}`);
     },
-    onError: () => toast({ title: "更新に失敗しました", variant: "destructive" }),
+    onError: (e: Error) => toast({ title: e.message || "更新に失敗しました", variant: "destructive" }),
   });
 
   const onSubmit = (data: FormValues) => {
@@ -240,7 +244,7 @@ export default function NewRequest({ editId }: Props) {
             <FormField control={form.control} name="requesterEmail" render={({ field }) => (
               <FormItem><FormLabel>メールアドレス <span className="text-destructive">*</span></FormLabel>
                 <FormControl><Input {...field} type="email" placeholder="例: tanaka@example.co.jp" /></FormControl>
-                <p className="text-xs text-muted-foreground mt-1">※ メール通知はサーバー版でのみ機能します</p>
+                <p className="text-xs text-muted-foreground mt-1">※ 完了時の通知メールアドレスとして保存されます</p>
                 <FormMessage />
               </FormItem>
             )} />

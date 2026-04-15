@@ -4,9 +4,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  getRequestWithItems, getOrdersByRequestId, createOrder, deleteRequest, verifyPin,
-  type StockRequestWithItems, type StockItem, type Order,
-} from "@/lib/db";
+  getRequest, getOrders, createOrder, deleteRequest, verifyPin, loadConfig,
+  type StockRequest, type StockItem, type Order,
+} from "@/lib/github";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -51,21 +51,26 @@ export default function RequestDetail() {
   const [pinError, setPinError] = useState("");
   const [pinAction, setPinAction] = useState<"edit" | "delete">("delete");
 
-  const { data: request, isLoading } = useQuery<StockRequestWithItems | undefined>({
+  const cfg = loadConfig();
+
+  const { data: request, isLoading } = useQuery<StockRequest | null>({
     queryKey: ["requests", id],
-    queryFn: () => getRequestWithItems(parseInt(id!)),
+    queryFn: () => getRequest(cfg!, parseInt(id!)),
+    enabled: !!cfg,
   });
 
   const { data: orders } = useQuery<Order[]>({
     queryKey: ["orders", id],
-    queryFn: () => getOrdersByRequestId(parseInt(id!)),
+    queryFn: () => getOrders(cfg!, parseInt(id!)),
+    enabled: !!cfg,
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (pin: string) => {
-      const valid = await verifyPin(parseInt(id!), pin);
+      if (!cfg) throw new Error("GitHub設定がありません");
+      const valid = await verifyPin(cfg, parseInt(id!), pin);
       if (!valid) throw new Error("PINが正しくありません");
-      await deleteRequest(parseInt(id!));
+      await deleteRequest(cfg, parseInt(id!));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["requests"] });
@@ -80,7 +85,8 @@ export default function RequestDetail() {
   };
 
   const handlePinSubmit = async () => {
-    const valid = await verifyPin(parseInt(id!), pinInput);
+    if (!cfg) return;
+    const valid = await verifyPin(cfg, parseInt(id!), pinInput);
     if (valid) {
       setShowPinDialog(false);
       if (pinAction === "delete") {
@@ -226,11 +232,12 @@ export default function RequestDetail() {
 }
 
 function ItemBlock({ item, index, request, orders }: {
-  item: StockItem; index: number; request: StockRequestWithItems; orders: Order[];
+  item: StockItem; index: number; request: StockRequest; orders: Order[];
 }) {
   const { toast } = useToast();
   const [showOrderForm, setShowOrderForm] = useState(false);
   const today = format(new Date(), "yyyy-MM-dd");
+  const cfg = loadConfig();
 
   const itemOrders = orders.filter((o) => o.itemId === item.id);
   const totalOrdered = itemOrders.reduce((s, o) => s + o.orderedQuantity, 0);
@@ -249,7 +256,8 @@ function ItemBlock({ item, index, request, orders }: {
 
   const orderMutation = useMutation({
     mutationFn: async (data: OrderFormValues) => {
-      return createOrder({ ...data, orderDate: today });
+      if (!cfg) throw new Error("GitHub設定がありません");
+      return createOrder(cfg, { ...data, orderDate: today });
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["orders", String(request.id)] });
@@ -266,7 +274,7 @@ function ItemBlock({ item, index, request, orders }: {
       });
       setShowOrderForm(false);
     },
-    onError: () => toast({ title: "発注に失敗しました", variant: "destructive" }),
+    onError: (e: Error) => toast({ title: e.message || "発注に失敗しました", variant: "destructive" }),
   });
 
   const pct = item.quantity > 0 ? Math.round((totalOrdered / item.quantity) * 100) : 0;

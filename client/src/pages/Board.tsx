@@ -2,13 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   PlusCircle, Package, ArrowUpCircle, ArrowDownCircle,
-  Clock, CheckCircle, AlertCircle, XCircle, Search, X,
+  Clock, CheckCircle, AlertCircle, XCircle, Search, X, Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { StockRequestWithItems, StockItem } from "@/lib/db";
-import { getAllRequestsWithItems } from "@/lib/db";
+import type { StockRequest, StockItem } from "@/lib/github";
+import { getAllRequests, loadConfig } from "@/lib/github";
 import { isAfter, parseISO } from "date-fns";
 import { useState, useMemo } from "react";
 
@@ -32,7 +32,7 @@ function isExpiredPost(deadline: string) {
   catch { return false; }
 }
 
-function matchSearch(query: string, req: StockRequestWithItems, item: StockItem): boolean {
+function matchSearch(query: string, req: StockRequest, item: StockItem): boolean {
   if (!query.trim()) return true;
   const q = query.trim().toLowerCase();
   const targets = [
@@ -49,9 +49,12 @@ export default function Board() {
   const [showExpired, setShowExpired] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: requests, isLoading } = useQuery<StockRequestWithItems[]>({
+  const cfg = loadConfig();
+
+  const { data: requests, isLoading, error } = useQuery<StockRequest[]>({
     queryKey: ["requests"],
-    queryFn: getAllRequestsWithItems,
+    queryFn: () => getAllRequests(cfg!),
+    enabled: !!cfg,
   });
 
   const records = useMemo(
@@ -69,6 +72,35 @@ export default function Board() {
     }),
     [records, statusFilter, typeFilter, showExpired, searchQuery]
   );
+
+  // GitHub設定未完了の場合
+  if (!cfg) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+        <Settings size={44} className="mb-3 opacity-30" />
+        <p className="text-sm mb-1">GitHub設定が必要です</p>
+        <p className="text-xs mb-4 text-center max-w-xs">
+          アプリを利用するには、まずGitHub Personal Access Tokenを設定してください。
+        </p>
+        <Link href="/settings">
+          <Button><Settings size={15} className="mr-1.5" />設定画面を開く</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+        <XCircle size={44} className="mb-3 opacity-30 text-destructive" />
+        <p className="text-sm mb-1 text-destructive">GitHub APIエラー</p>
+        <p className="text-xs mb-4 text-center max-w-xs">{(error as Error).message}</p>
+        <Link href="/settings">
+          <Button variant="outline"><Settings size={15} className="mr-1.5" />設定を確認する</Button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -189,7 +221,7 @@ function highlight(text: string, query: string): JSX.Element {
   );
 }
 
-function BoardRow({ req, item, searchQuery }: { req: StockRequestWithItems; item: StockItem; searchQuery: string }) {
+function BoardRow({ req, item, searchQuery }: { req: StockRequest; item: StockItem; searchQuery: string }) {
   const typeConfig = TYPE_CONFIG[req.type];
   const statusConfig = STATUS_CONFIG[req.status] ?? STATUS_CONFIG["受付中"];
   const expired = isExpiredPost(req.postDeadline);

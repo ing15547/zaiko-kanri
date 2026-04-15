@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Package, PlusCircle, Sun, Moon } from "lucide-react";
+import { PlusCircle, Sun, Moon, Settings } from "lucide-react";
 import { useState, useEffect } from "react";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -56,9 +56,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 依頼を追加
               </a>
             </Link>
+            <Link href="/settings">
+              <a
+                className={`p-1.5 rounded transition-colors ${
+                  location === "/settings"
+                    ? "text-primary bg-primary/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                }`}
+                aria-label="GitHub設定"
+                title="GitHub設定"
+              >
+                <Settings size={16} />
+              </a>
+            </Link>
             <button
               onClick={() => setDark(!dark)}
-              className="ml-2 p-1.5 rounded hover:bg-accent text-muted-foreground transition-colors"
+              className="p-1.5 rounded hover:bg-accent text-muted-foreground transition-colors"
               aria-label="テーマ切替"
               data-testid="button-theme-toggle"
             >
