@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: zaiko-kanri
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: node dist/index.cjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /data/zaiko.db
+      # SMTP設定（メール通知を使う場合はRenderのダッシュボードから入力）
+      # - key: SMTP_HOST
+      #   value: smtp.example.com
+      # - key: SMTP_PORT
+      #   value: "587"
+      # - key: SMTP_USER
+      #   value: your-email@example.com
+      # - key: SMTP_PASS
+      #   value: your-password
+      # - key: SMTP_FROM
+      #   value: noreply@example.com
+    disk:
+      name: zaiko-data
+      mountPath: /data
+      sizeGB: 1

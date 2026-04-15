@@ -90,6 +90,45 @@ npm start
 - **対応中** → 一部発注あり
 - **完了** → 全数量の発注完了（自動切り替え + メール通知）
 
+## Render（無料）へのデプロイ手順
+
+[Render](https://render.com) は無料でNode.jsアプリをホスティングできるサービスです。
+
+### 手順
+
+1. [render.com](https://render.com) でアカウントを作成（無料）
+2. ダッシュボードの **「New +」→「Web Service」** をクリック
+3. **「Connect a repository」** でGitHubアカウントを連携し、`zaiko-kanri` リポジトリを選択
+4. 以下の設定を確認（`render.yaml` が自動で読み込まれるので基本そのままでOK）：
+
+   | 項目 | 値 |
+   |------|----|
+   | Runtime | Node |
+   | Build Command | `npm install && npm run build` |
+   | Start Command | `node dist/index.cjs` |
+   | Plan | **Free** |
+
+5. **「Create Web Service」** をクリック → 自動でビルド・デプロイが始まります
+6. 完了すると `https://zaiko-kanri-xxxx.onrender.com` のようなURLが発行されます
+
+### データの保存について
+
+`render.yaml` に **Disk（1GB）** の設定が含まれています。これによりSQLiteのデータがサーバー再起動後も消えずに保存されます。
+
+> ⚠️ Renderの無料プランはアクセスがない時間帯にサーバーがスリープします。初回アクセス時に起動に数秒かかる場合があります。
+
+### メール通知を使いたい場合
+
+Renderのダッシュボード → サービス → **「Environment」** タブで以下を追加：
+
+| 変数名 | 内容 |
+|--------|------|
+| `SMTP_HOST` | SMTPサーバーホスト名 |
+| `SMTP_PORT` | `587` など |
+| `SMTP_USER` | メールアドレス |
+| `SMTP_PASS` | パスワード |
+| `SMTP_FROM` | 送信元アドレス |
+
 ## ライセンス
 
 MIT
