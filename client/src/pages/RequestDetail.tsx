@@ -260,8 +260,9 @@ function ItemBlock({ item, index, request, orders }: {
       return createOrder(cfg, { ...data, orderDate: today });
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["orders", String(request.id)] });
-      queryClient.invalidateQueries({ queryKey: ["requests", String(request.id)] });
+      // キャッシュを完全クリアして強制再フェッチ
+      queryClient.removeQueries({ queryKey: ["orders", String(request.id)] });
+      queryClient.removeQueries({ queryKey: ["requests", String(request.id)] });
       queryClient.invalidateQueries({ queryKey: ["requests"] });
       if (result.autoCompleted) {
         toast({ title: "発注しました — 全数量の発注が完了し、ステータスが「完了」になりました" });
