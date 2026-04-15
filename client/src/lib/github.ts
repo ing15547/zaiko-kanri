@@ -9,22 +9,22 @@ export interface GHConfig {
   token: string;   // Personal Access Token
 }
 
-const CONFIG_KEY = "zaiko_gh_config";
 const DATA_LABEL = "zaiko-data";       // 在庫依頼のラベル
 const ORDER_LABEL = "zaiko-order";     // 発注コメントの識別子
 
-// ===== 設定の保存/読み込み =====
-export function saveConfig(cfg: GHConfig) {
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
-}
+// ===== ビルド時に埋め込まれる設定 =====
+// Vite の define で置換される（GitHub Actions Secrets → 環境変数 → define）
+const BUILT_IN_CONFIG: GHConfig | null = (() => {
+  const owner = import.meta.env.VITE_GH_OWNER ?? "";
+  const repo = import.meta.env.VITE_GH_REPO ?? "";
+  const token = import.meta.env.VITE_GH_TOKEN ?? "";
+  if (owner && repo && token) return { owner, repo, token };
+  return null;
+})();
+
+// 設定を取得（ビルド埋め込み優先、フォールバックなし）
 export function loadConfig(): GHConfig | null {
-  try {
-    const s = localStorage.getItem(CONFIG_KEY);
-    return s ? JSON.parse(s) : null;
-  } catch { return null; }
-}
-export function clearConfig() {
-  localStorage.removeItem(CONFIG_KEY);
+  return BUILT_IN_CONFIG;
 }
 
 // ===== GitHub API ヘルパー =====

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   PlusCircle, Package, ArrowUpCircle, ArrowDownCircle,
-  Clock, CheckCircle, AlertCircle, XCircle, Search, X, Settings,
+  Clock, CheckCircle, AlertCircle, XCircle, Search, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,14 +77,11 @@ export default function Board() {
   if (!cfg) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-        <Settings size={44} className="mb-3 opacity-30" />
-        <p className="text-sm mb-1">GitHub設定が必要です</p>
-        <p className="text-xs mb-4 text-center max-w-xs">
-          アプリを利用するには、まずGitHub Personal Access Tokenを設定してください。
+        <XCircle size={44} className="mb-3 opacity-30" />
+        <p className="text-sm mb-1">GitHub接続が設定されていません</p>
+        <p className="text-xs text-center max-w-xs">
+          リポジトリ管理者がGitHub Secretsを設定し、再ビルドしてください。
         </p>
-        <Link href="/settings">
-          <Button><Settings size={15} className="mr-1.5" />設定画面を開く</Button>
-        </Link>
       </div>
     );
   }
@@ -94,10 +91,7 @@ export default function Board() {
       <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
         <XCircle size={44} className="mb-3 opacity-30 text-destructive" />
         <p className="text-sm mb-1 text-destructive">GitHub APIエラー</p>
-        <p className="text-xs mb-4 text-center max-w-xs">{(error as Error).message}</p>
-        <Link href="/settings">
-          <Button variant="outline"><Settings size={15} className="mr-1.5" />設定を確認する</Button>
-        </Link>
+        <p className="text-xs text-center max-w-xs">{(error as Error).message}</p>
       </div>
     );
   }
