@@ -12,7 +12,8 @@ export default defineConfig({
     },
   },
   root: path.resolve(import.meta.dirname, "client"),
-  base: "./",
+  // GitHub Pages用: リポジトリ名をbaseに設定
+  base: process.env.GITHUB_PAGES === "true" ? "/zaiko-kanri/" : "./",
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,

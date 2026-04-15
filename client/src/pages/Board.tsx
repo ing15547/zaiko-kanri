@@ -7,11 +7,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { StockRequestWithItems, StockItem } from "@shared/schema";
+import type { StockRequestWithItems, StockItem } from "@/lib/db";
+import { getAllRequestsWithItems } from "@/lib/db";
 import { isAfter, parseISO } from "date-fns";
 import { useState, useMemo } from "react";
 
-// ========== 定数 ==========
 const TYPE_CONFIG: Record<string, { label: string; icon: JSX.Element; className: string }> = {
   出: { label: "出庫", icon: <ArrowUpCircle size={13} />, className: "badge-shutsu" },
   求: { label: "入庫要求", icon: <ArrowDownCircle size={13} />, className: "badge-motome" },
@@ -32,22 +32,17 @@ function isExpiredPost(deadline: string) {
   catch { return false; }
 }
 
-// あいまい検索（商品名・商品コード・依頼拠点・依頼者名を対象）
 function matchSearch(query: string, req: StockRequestWithItems, item: StockItem): boolean {
   if (!query.trim()) return true;
   const q = query.trim().toLowerCase();
   const targets = [
-    item.productName,
-    item.productCode,
-    req.requesterBase,
-    req.requesterName,
-    item.itemNote ?? "",
-    req.note ?? "",
+    item.productName, item.productCode,
+    req.requesterBase, req.requesterName,
+    item.itemNote ?? "", req.note ?? "",
   ].map((s) => s.toLowerCase());
   return targets.some((t) => t.includes(q));
 }
 
-// ========== ページ本体 ==========
 export default function Board() {
   const [statusFilter, setStatusFilter] = useState("すべて");
   const [typeFilter, setTypeFilter] = useState("すべて");
@@ -55,16 +50,15 @@ export default function Board() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const { data: requests, isLoading } = useQuery<StockRequestWithItems[]>({
-    queryKey: ["/api/requests"],
+    queryKey: ["requests"],
+    queryFn: getAllRequestsWithItems,
   });
 
-  // 全商品行を展開
   const records = useMemo(
     () => (requests ?? []).flatMap((req) => req.items.map((item) => ({ req, item }))),
     [requests]
   );
 
-  // フィルタリング
   const filtered = useMemo(() =>
     records.filter(({ req, item }) => {
       const statusOk = statusFilter === "すべて" || req.status === statusFilter;
@@ -78,7 +72,6 @@ export default function Board() {
 
   return (
     <div>
-      {/* ===== ページヘッダー ===== */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-foreground">在庫依頼一覧</h1>
@@ -93,7 +86,6 @@ export default function Board() {
         </Link>
       </div>
 
-      {/* ===== 検索バー ===== */}
       <div className="relative mb-4">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
         <Input
@@ -108,28 +100,18 @@ export default function Board() {
           <button
             onClick={() => setSearchQuery("")}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-            data-testid="button-clear-search"
           >
             <X size={14} />
           </button>
         )}
       </div>
 
-      {/* ===== フィルター ===== */}
       <div className="flex flex-wrap gap-x-5 gap-y-2 mb-4">
         <div className="flex items-center gap-1">
           <span className="text-xs text-muted-foreground mr-1">区分:</span>
           {TYPE_FILTERS.map((f) => (
-            <button
-              key={f}
-              onClick={() => setTypeFilter(f)}
-              data-testid={`filter-type-${f}`}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                typeFilter === f
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-accent"
-              }`}
-            >
+            <button key={f} onClick={() => setTypeFilter(f)}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${typeFilter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}>
               {f === "すべて" ? "すべて" : f === "出" ? "出庫" : "入庫要求"}
             </button>
           ))}
@@ -137,47 +119,26 @@ export default function Board() {
         <div className="flex items-center gap-1">
           <span className="text-xs text-muted-foreground mr-1">状態:</span>
           {STATUS_FILTERS.map((f) => (
-            <button
-              key={f}
-              onClick={() => setStatusFilter(f)}
-              data-testid={`filter-status-${f}`}
-              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                statusFilter === f
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-accent"
-              }`}
-            >
+            <button key={f} onClick={() => setStatusFilter(f)}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${statusFilter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"}`}>
               {f}
             </button>
           ))}
         </div>
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer ml-auto select-none">
-          <input
-            type="checkbox"
-            checked={showExpired}
-            onChange={(e) => setShowExpired(e.target.checked)}
-            className="rounded"
-          />
+          <input type="checkbox" checked={showExpired} onChange={(e) => setShowExpired(e.target.checked)} className="rounded" />
           期限切れも表示
         </label>
       </div>
 
-      {/* ===== テーブルヘッダー（デスクトップ） ===== */}
       {!isLoading && filtered.length > 0 && (
         <div className="hidden md:grid grid-cols-[72px_100px_1fr_130px_70px_60px_88px_88px_76px] gap-2 px-4 py-2 text-xs font-semibold text-muted-foreground border-b border-border mb-1 bg-muted/30 rounded-t-lg">
-          <span>区分</span>
-          <span>商品コード</span>
-          <span>商品名</span>
-          <span>依頼者／拠点</span>
-          <span className="text-right">数量</span>
-          <span>単位</span>
-          <span>賞味期限</span>
-          <span>掲示期限</span>
-          <span>状態</span>
+          <span>区分</span><span>商品コード</span><span>商品名</span>
+          <span>依頼者／拠点</span><span className="text-right">数量</span>
+          <span>単位</span><span>賞味期限</span><span>掲示期限</span><span>状態</span>
         </div>
       )}
 
-      {/* ===== 一覧 ===== */}
       {isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
@@ -188,16 +149,12 @@ export default function Board() {
           {searchQuery ? (
             <>
               <p className="text-sm">「{searchQuery}」に一致する依頼がありません</p>
-              <Button variant="outline" size="sm" className="mt-3" onClick={() => setSearchQuery("")}>
-                検索をクリア
-              </Button>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => setSearchQuery("")}>検索をクリア</Button>
             </>
           ) : (
             <>
               <p className="text-sm">依頼がありません</p>
-              <Link href="/new">
-                <Button variant="outline" className="mt-4" size="sm">最初の依頼を追加する</Button>
-              </Link>
+              <Link href="/new"><Button variant="outline" className="mt-4" size="sm">最初の依頼を追加する</Button></Link>
             </>
           )}
         </div>
@@ -217,7 +174,6 @@ export default function Board() {
   );
 }
 
-// ========== 掲示板1行 ==========
 function highlight(text: string, query: string): JSX.Element {
   if (!query.trim()) return <>{text}</>;
   const idx = text.toLowerCase().indexOf(query.toLowerCase().trim());
@@ -233,13 +189,7 @@ function highlight(text: string, query: string): JSX.Element {
   );
 }
 
-function BoardRow({
-  req, item, searchQuery,
-}: {
-  req: StockRequestWithItems;
-  item: StockItem;
-  searchQuery: string;
-}) {
+function BoardRow({ req, item, searchQuery }: { req: StockRequestWithItems; item: StockItem; searchQuery: string }) {
   const typeConfig = TYPE_CONFIG[req.type];
   const statusConfig = STATUS_CONFIG[req.status] ?? STATUS_CONFIG["受付中"];
   const expired = isExpiredPost(req.postDeadline);
@@ -247,41 +197,25 @@ function BoardRow({
 
   return (
     <Link href={`/requests/${req.id}`}>
-      <a
-        data-testid={`row-item-${req.id}-${item.id}`}
-        className={`block border-b border-border bg-card hover:bg-accent/40 transition-colors cursor-pointer px-4 py-3 ${
-          expired ? "opacity-55" : ""
-        }`}
-      >
-        {/* ===== デスクトップ: グリッド ===== */}
+      <a data-testid={`row-item-${req.id}-${item.id}`}
+        className={`block border-b border-border bg-card hover:bg-accent/40 transition-colors cursor-pointer px-4 py-3 ${expired ? "opacity-55" : ""}`}>
         <div className="hidden md:grid grid-cols-[72px_100px_1fr_130px_70px_60px_88px_88px_76px] gap-2 items-center text-sm">
           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold w-fit ${typeConfig?.className ?? ""}`}>
             {typeConfig?.icon}{typeConfig?.label}
           </span>
-          <span className="text-xs text-muted-foreground font-mono truncate">
-            {highlight(item.productCode, searchQuery)}
-          </span>
-          <span className="font-medium text-foreground truncate">
-            {highlight(item.productName, searchQuery)}
-          </span>
-          <span className="text-xs text-muted-foreground truncate">
-            {highlight(requesterLabel, searchQuery)}
-          </span>
-          <span className="font-bold text-primary text-right tabular-nums">
-            {item.quantity.toLocaleString()}
-          </span>
+          <span className="text-xs text-muted-foreground font-mono truncate">{highlight(item.productCode, searchQuery)}</span>
+          <span className="font-medium text-foreground truncate">{highlight(item.productName, searchQuery)}</span>
+          <span className="text-xs text-muted-foreground truncate">{highlight(requesterLabel, searchQuery)}</span>
+          <span className="font-bold text-primary text-right tabular-nums">{item.quantity.toLocaleString()}</span>
           <span className="text-sm text-foreground">{item.unit}</span>
           <span className="text-xs text-muted-foreground">{item.expiryDate || "—"}</span>
           <span className={`text-xs ${expired ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
-            {req.postDeadline || "—"}
-            {expired && <span className="ml-1 text-[10px]">期限切</span>}
+            {req.postDeadline || "—"}{expired && <span className="ml-1 text-[10px]">期限切</span>}
           </span>
           <span className={`inline-flex items-center gap-1 text-xs font-medium ${statusConfig.className}`}>
             {statusConfig.icon}{statusConfig.label}
           </span>
         </div>
-
-        {/* ===== モバイル: カード ===== */}
         <div className="md:hidden space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold ${typeConfig?.className ?? ""}`}>
